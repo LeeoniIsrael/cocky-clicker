@@ -19,6 +19,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.leeonisrael.cockyclicker.ui.components.OfflineHypeDialog
 import com.leeonisrael.cockyclicker.ui.screens.GameScreen
 import com.leeonisrael.cockyclicker.ui.screens.StatsScreen
 import com.leeonisrael.cockyclicker.ui.theme.CockyClickerTheme
@@ -35,6 +36,7 @@ fun CockyClickerApp() {
     val viewModel: GameViewModel = viewModel()
 
     CockyClickerTheme {
+        OfflineHypeDialog(viewModel)
         Scaffold(
             bottomBar = {
                 NavigationBar {
