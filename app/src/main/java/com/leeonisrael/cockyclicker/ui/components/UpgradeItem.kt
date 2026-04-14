@@ -69,6 +69,18 @@ fun UpgradeItem(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary
                 )
+                val boostText = when {
+                    upgrade.hypePerTap > 0 -> "+${upgrade.hypePerTap} Hype/Tap"
+                    upgrade.hypePerSecond > 0 -> "+${upgrade.hypePerSecond} Hype/Second"
+                    else -> ""
+                }
+                if(boostText.isNotEmpty()) {
+                    Text(
+                        text = boostText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Text(
                     text = upgrade.description,
                     style = MaterialTheme.typography.bodySmall,

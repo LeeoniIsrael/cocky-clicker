@@ -14,7 +14,7 @@ import androidx.compose.ui.unit.sp
 import com.leeonisrael.cockyclicker.util.NumberFormatter
 
 @Composable
-fun HypeCounter(totalHype: Long, hypePerSecond: Long) {
+fun HypeCounter(totalHype: Long, hypePerTap: Long,hypePerSecond: Long) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -29,11 +29,13 @@ fun HypeCounter(totalHype: Long, hypePerSecond: Long) {
                 color = MaterialTheme.colorScheme.primary
             )
         )
-        Text(
-            text = "Hype",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        if (hypePerTap > 0) {
+            Text(
+                text = "${NumberFormatter.format(hypePerTap)} hype / tap",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
         if (hypePerSecond > 0) {
             Text(
                 text = "${NumberFormatter.format(hypePerSecond)} hype / sec",
