@@ -9,6 +9,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -20,7 +21,13 @@ import com.leeonisrael.cockyclicker.viewmodel.GameViewModel
 @Composable
 fun GameScreen(viewModel: GameViewModel) {
     val gameState by viewModel.gameState.collectAsState()
-    val hypePerSecond = viewModel.calculateHypePerSecond()
+    val hypePerSecond = remember(gameState) {
+        viewModel.calculateHypePerSecond()
+    }
+    val hypePerTap = remember(gameState) {
+        viewModel.calculateHypePerTap()
+    }
+
 
     Scaffold { paddingValues ->
         Column(
@@ -31,6 +38,7 @@ fun GameScreen(viewModel: GameViewModel) {
         ) {
             HypeCounter(
                 totalHype = gameState.totalHype,
+                hypePerTap = hypePerTap,
                 hypePerSecond = hypePerSecond
             )
 
