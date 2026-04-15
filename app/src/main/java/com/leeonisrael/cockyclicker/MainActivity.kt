@@ -11,13 +11,18 @@ import com.leeonisrael.cockyclicker.viewmodel.GameViewModel
 
 class MainActivity : ComponentActivity() {
     private val viewModel: GameViewModel by viewModels()
+    private var isFirstLoad: Boolean = true
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         lifecycle.addObserver(LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_RESUME -> {
-                    viewModel.resumeGame()
+                    if(!isFirstLoad) {
+                        viewModel.resumeGame()
+                    }
+                    isFirstLoad = false
                 }
                 Lifecycle.Event.ON_PAUSE -> {
                     viewModel.pauseAndSave()

@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.leeonisrael.cockyclicker.model.GameState
 import com.leeonisrael.cockyclicker.model.Upgrade
 import com.leeonisrael.cockyclicker.model.UpgradeRegistry
@@ -49,14 +50,16 @@ class GameViewModel(application : Application) : AndroidViewModel(application) {
         autoHypeJob?.cancel()
         _gameState.update { it.copy(lastKnownTime = System.currentTimeMillis()) }
         val json = gson.toJson(_gameState.value)
-        prefs.edit().putString("game_state", json).apply()
+        prefs.edit().putString("game_state", json).commit()
     }
     fun loadProgress() {
         val gameStateJson = prefs.getString("game_state", null)
         if (gameStateJson != null) {
             try {
-                val loadedState = gson.fromJson(gameStateJson, GameState::class.java)
-                _gameState.value = loadedState
+                val type = object: TypeToken<GameState>() {}.type
+                val loadedState: GameState = gson.fromJson(gameStateJson, type)
+                val sanitizedUpgrades = loadedState.ownedUpgrades.mapValues { entry -> (entry.value as Number).toInt() }
+                _gameState.value = loadedState.copy(ownedUpgrades = sanitizedUpgrades)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -150,7 +153,7 @@ class GameViewModel(application : Application) : AndroidViewModel(application) {
     }
 
     fun buyUpgrade(upgrade: Upgrade) {
-        val currentOwned = _gameState.value.ownedUpgrades.getOrDefault(upgrade.id, 0)
+        val currentOwned = (_gameState.value.ownedUpgrades[upgrade.id] as? Number)?.toInt() ?: 0
         val cost = calculateUpgradeCost(upgrade, currentOwned)
 
         if (_gameState.value.totalHype >= cost) {
@@ -171,7 +174,7 @@ class GameViewModel(application : Application) : AndroidViewModel(application) {
         val bonus = UpgradeRegistry.upgrades
             .filter { it.hypePerTap > 0 }
             .sumOf { upgrade ->
-                val owned = _gameState.value.ownedUpgrades.getOrDefault(upgrade.id, 0)
+                val owned = (_gameState.value.ownedUpgrades[upgrade.id] as? Number)?.toInt() ?: 0
                 owned * upgrade.hypePerTap
             }
         return Constants.BASE_HYPE_PER_TAP + bonus
@@ -181,7 +184,7 @@ class GameViewModel(application : Application) : AndroidViewModel(application) {
         return UpgradeRegistry.upgrades
             .filter { it.hypePerSecond > 0 }
             .sumOf { upgrade ->
-                val owned = _gameState.value.ownedUpgrades.getOrDefault(upgrade.id, 0)
+                val owned = (_gameState.value.ownedUpgrades[upgrade.id] as? Number)?.toInt() ?: 0
                 owned * upgrade.hypePerSecond
             }
     }
