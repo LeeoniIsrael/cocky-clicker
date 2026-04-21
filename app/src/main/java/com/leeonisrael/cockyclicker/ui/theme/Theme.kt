@@ -1,59 +1,50 @@
 package com.leeonisrael.cockyclicker.ui.theme
 
 import android.app.Activity
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-private val DarkColorScheme = darkColorScheme(
+private val CockyColorScheme = darkColorScheme(
     primary = Garnet,
-    secondary = Black,
-    tertiary = Gray,
-    background = Black,
-    surface = Black,
     onPrimary = White,
-    onSecondary = White,
+    primaryContainer = DarkGarnet,
+    onPrimaryContainer = Gold,
+    secondary = Gold,
+    onSecondary = NearBlack,
+    secondaryContainer = DarkGold,
+    onSecondaryContainer = NearBlack,
+    tertiary = DarkGold,
     onTertiary = White,
+    background = NearBlack,
     onBackground = White,
+    surface = SurfaceDark,
     onSurface = White,
-)
-
-private val LightColorScheme = lightColorScheme(
-    primary = Garnet,
-    secondary = Black,
-    tertiary = Gray,
-    background = White,
-    surface = White,
-    onPrimary = White,
-    onSecondary = White,
-    onTertiary = White,
-    onBackground = Black,
-    onSurface = Black,
+    surfaceVariant = SurfaceVariantDark,
+    onSurfaceVariant = Color(0xFFCCCCCC),
+    error = ErrorRed,
+    onError = White,
+    outline = Color(0xFF555555),
 )
 
 @Composable
-fun CockyClickerTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    content: @Composable () -> Unit
-) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+fun CockyClickerTheme(content: @Composable () -> Unit) {
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.primary.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = darkTheme
+            window.statusBarColor = DeepGarnet.toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
         }
     }
 
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = CockyColorScheme,
         typography = Typography,
         content = content
     )

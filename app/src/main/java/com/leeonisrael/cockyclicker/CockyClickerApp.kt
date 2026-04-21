@@ -2,11 +2,14 @@ package com.leeonisrael.cockyclicker
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,13 +24,27 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.leeonisrael.cockyclicker.ui.components.OfflineHypeDialog
 import com.leeonisrael.cockyclicker.ui.screens.GameScreen
+import com.leeonisrael.cockyclicker.ui.screens.MilestonesScreen
 import com.leeonisrael.cockyclicker.ui.screens.StatsScreen
 import com.leeonisrael.cockyclicker.ui.theme.CockyClickerTheme
+import com.leeonisrael.cockyclicker.ui.theme.DarkGarnet
+import com.leeonisrael.cockyclicker.ui.theme.Gold
+import com.leeonisrael.cockyclicker.ui.theme.NearBlack
 import com.leeonisrael.cockyclicker.viewmodel.GameViewModel
 
 sealed class Screen(val route: String, val label: String, val icon: @Composable () -> Unit) {
-    object Game : Screen("game", "Play", { Icon(Icons.Default.PlayArrow, contentDescription = null) })
-    object Stats : Screen("stats", "Stats", { Icon(Icons.Default.Info, contentDescription = null) })
+    object Game : Screen(
+        "game", "Play",
+        { Icon(Icons.Default.PlayArrow, contentDescription = null) }
+    )
+    object Stats : Screen(
+        "stats", "Stats",
+        { Icon(Icons.Default.Info, contentDescription = null) }
+    )
+    object Milestones : Screen(
+        "milestones", "Milestones",
+        { Icon(Icons.Default.EmojiEvents, contentDescription = null) }
+    )
 }
 
 @Composable
@@ -38,17 +55,27 @@ fun CockyClickerApp() {
     CockyClickerTheme {
         OfflineHypeDialog(viewModel)
         Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
-                NavigationBar {
+                NavigationBar(
+                    containerColor = DarkGarnet,
+                    contentColor = Gold
+                ) {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentDestination = navBackStackEntry?.destination
-                    val items = listOf(Screen.Game, Screen.Stats)
+                    val items = listOf(Screen.Game, Screen.Stats, Screen.Milestones)
 
                     items.forEach { screen ->
+                        val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
                         NavigationBarItem(
                             icon = screen.icon,
-                            label = { Text(screen.label) },
-                            selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                            label = {
+                                Text(
+                                    screen.label,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            },
+                            selected = selected,
                             onClick = {
                                 navController.navigate(screen.route) {
                                     popUpTo(navController.graph.findStartDestination().id) {
@@ -57,7 +84,14 @@ fun CockyClickerApp() {
                                     launchSingleTop = true
                                     restoreState = true
                                 }
-                            }
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = Gold,
+                                selectedTextColor = Gold,
+                                unselectedIconColor = Gold.copy(alpha = 0.5f),
+                                unselectedTextColor = Gold.copy(alpha = 0.5f),
+                                indicatorColor = NearBlack.copy(alpha = 0.4f)
+                            )
                         )
                     }
                 }
@@ -68,8 +102,9 @@ fun CockyClickerApp() {
                 startDestination = Screen.Game.route,
                 modifier = Modifier.padding(innerPadding)
             ) {
-                composable(Screen.Game.route) { GameScreen(viewModel) }
-                composable(Screen.Stats.route) { StatsScreen(viewModel) }
+                composable(Screen.Game.route)       { GameScreen(viewModel) }
+                composable(Screen.Stats.route)      { StatsScreen(viewModel) }
+                composable(Screen.Milestones.route) { MilestonesScreen(viewModel) }
             }
         }
     }

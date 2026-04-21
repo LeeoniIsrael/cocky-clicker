@@ -3,17 +3,15 @@ package com.leeonisrael.cockyclicker.viewmodel
 import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.leeonisrael.cockyclicker.model.GameState
 import com.leeonisrael.cockyclicker.model.Upgrade
 import com.leeonisrael.cockyclicker.model.UpgradeRegistry
 import com.leeonisrael.cockyclicker.util.Constants
+import com.leeonisrael.cockyclicker.util.SoundManager
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,19 +23,27 @@ import kotlin.math.ln
 import kotlin.math.pow
 import kotlin.math.roundToLong
 
-class GameViewModel(application : Application) : AndroidViewModel(application) {
+class GameViewModel(application: Application) : AndroidViewModel(application) {
+
     private val prefs = application.getSharedPreferences("cocky_prefs", Context.MODE_PRIVATE)
     private val gson = Gson()
+
     private val _gameState = MutableStateFlow(GameState())
-    private val _offlineHypeReceived = MutableStateFlow<Long?>(null)
-    val offlineHypeReceived: StateFlow<Long?> = _offlineHypeReceived.asStateFlow()
     val gameState: StateFlow<GameState> = _gameState.asStateFlow()
 
+    private val _offlineHypeReceived = MutableStateFlow<Long?>(null)
+    val offlineHypeReceived: StateFlow<Long?> = _offlineHypeReceived.asStateFlow()
+
+    val soundManager = SoundManager(application)
+
     private var tickerJob: Job? = null
+    private var autoHypeJob: Job? = null
 
     init {
         loadProgress()
     }
+
+    // ─── Lifecycle ────────────────────────────────────────────────────────────
 
     fun resumeGame() {
         calculateOfflineProgress()
@@ -49,24 +55,47 @@ class GameViewModel(application : Application) : AndroidViewModel(application) {
         tickerJob?.cancel()
         autoHypeJob?.cancel()
         _gameState.update { it.copy(lastKnownTime = System.currentTimeMillis()) }
-        val json = gson.toJson(_gameState.value)
-        prefs.edit().putString("game_state", json).commit()
+        prefs.edit().putString("game_state", gson.toJson(_gameState.value)).commit()
     }
+
+    override fun onCleared() {
+        super.onCleared()
+        soundManager.release()
+    }
+
+    // ─── Persistence ──────────────────────────────────────────────────────────
+
     fun loadProgress() {
-        val gameStateJson = prefs.getString("game_state", null)
-        if (gameStateJson != null) {
+        val json = prefs.getString("game_state", null)
+        if (json != null) {
             try {
-                val type = object: TypeToken<GameState>() {}.type
-                val loadedState: GameState = gson.fromJson(gameStateJson, type)
-                val sanitizedUpgrades = loadedState.ownedUpgrades.mapValues { entry -> (entry.value as Number).toInt() }
-                _gameState.value = loadedState.copy(ownedUpgrades = sanitizedUpgrades)
+                val type = object : TypeToken<GameState>() {}.type
+                val loaded: GameState = gson.fromJson(json, type)
+                val sanitizedUpgrades = loaded.ownedUpgrades
+                    .mapValues { (_, v) -> (v as? Number)?.toInt() ?: 0 }
+
+                @Suppress("UNCHECKED_CAST")
+                val sanitizedMilestones: Set<String> =
+                    (loaded.completedMilestones as? Set<*>)
+                        ?.filterIsInstance<String>()
+                        ?.toSet()
+                        ?: emptySet()
+
+                _gameState.value = loaded.copy(
+                    ownedUpgrades = sanitizedUpgrades,
+                    completedMilestones = sanitizedMilestones,
+                    prestigeFeathers = loaded.prestigeFeathers.coerceAtLeast(0)
+                )
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
-            resumeGame()
-        }
-    private var autoHypeJob: Job? = null
+        soundManager.isMuted = _gameState.value.isMuted
+        resumeGame()
+    }
+
+    // ─── Tickers ──────────────────────────────────────────────────────────────
+
     private fun startAutoHypeTicker() {
         autoHypeJob?.cancel()
         autoHypeJob = viewModelScope.launch {
@@ -80,29 +109,8 @@ class GameViewModel(application : Application) : AndroidViewModel(application) {
                             totalHypeEarned = it.totalHypeEarned + hps
                         )
                     }
+                    checkMilestones()
                 }
-            }
-        }
-    }
-
-    private fun calculateOfflineProgress() {
-        val currentState = _gameState.value
-        val currentTime = System.currentTimeMillis()
-        val timeDifference = currentTime - currentState.lastKnownTime
-
-        if (timeDifference > 0) {
-            val secondsAway = timeDifference / 1000.0
-            val hypePerSecond = calculateHypePerSecond()
-            val offlineHype = calculateOfflineHype(secondsAway, hypePerSecond)
-            if (offlineHype > 0) {
-                _gameState.update {
-                    it.copy(
-                        totalHype = it.totalHype + offlineHype,
-                        totalHypeEarned = it.totalHypeEarned + offlineHype,
-                        lastKnownTime = currentTime
-                    )
-                }
-                _offlineHypeReceived.value = offlineHype
             }
         }
     }
@@ -112,36 +120,44 @@ class GameViewModel(application : Application) : AndroidViewModel(application) {
         tickerJob = viewModelScope.launch {
             while (isActive) {
                 delay(1000)
-                _gameState.update {
-                    it.copy(totalPlayTime = it.totalPlayTime + 1000)
-                }
+                _gameState.update { it.copy(totalPlayTime = it.totalPlayTime + 1000) }
             }
         }
     }
 
-    fun calculateOfflineHype(
-        secondsAway: Double,
-        hypePerSecond: Long,
-        scaleFactor: Double = 3600.0 //Adjust to find sweet spot
-    ): Long {
-        if (secondsAway<= 0) return 0
+    // ─── Offline progress ─────────────────────────────────────────────────────
 
-        return (hypePerSecond * scaleFactor * ln(secondsAway + 1.0)).toLong()
+    private fun calculateOfflineProgress() {
+        val state = _gameState.value
+        val elapsed = System.currentTimeMillis() - state.lastKnownTime
+        if (elapsed <= 0) return
+
+        val seconds = elapsed / 1000.0
+        val hps = calculateHypePerSecond()
+        val gained = calculateOfflineHype(seconds, hps)
+        if (gained > 0) {
+            _gameState.update {
+                it.copy(
+                    totalHype = it.totalHype + gained,
+                    totalHypeEarned = it.totalHypeEarned + gained,
+                    lastKnownTime = System.currentTimeMillis()
+                )
+            }
+            _offlineHypeReceived.value = gained
+        }
     }
 
-    fun updatePlayTime(sessionMillis: Long) {
-        _gameState.update {
-            it.copy(
-                totalPlayTime = it.totalPlayTime + sessionMillis,
-                lastKnownTime = System.currentTimeMillis()
-
-            )
-        }
+    fun calculateOfflineHype(secondsAway: Double, hypePerSecond: Long, scaleFactor: Double = 3600.0): Long {
+        if (secondsAway <= 0) return 0
+        return (hypePerSecond * scaleFactor * ln(secondsAway + 1.0)).toLong()
     }
 
     fun dismissOfflineHype() {
         _offlineHypeReceived.value = null
     }
+
+    // ─── Core actions ─────────────────────────────────────────────────────────
+
     fun onTap() {
         val hpt = calculateHypePerTap()
         _gameState.update {
@@ -150,42 +166,117 @@ class GameViewModel(application : Application) : AndroidViewModel(application) {
                 totalHypeEarned = it.totalHypeEarned + hpt
             )
         }
+        soundManager.playTap()
+        checkMilestones()
     }
 
     fun buyUpgrade(upgrade: Upgrade) {
-        val currentOwned = (_gameState.value.ownedUpgrades[upgrade.id] as? Number)?.toInt() ?: 0
-        val cost = calculateUpgradeCost(upgrade, currentOwned)
-
+        val owned = _gameState.value.ownedUpgrades[upgrade.id] ?: 0
+        val cost = calculateUpgradeCost(upgrade, owned)
         if (_gameState.value.totalHype >= cost) {
             _gameState.update {
                 it.copy(
                     totalHype = it.totalHype - cost,
-                    ownedUpgrades = it.ownedUpgrades + (upgrade.id to currentOwned + 1)
+                    ownedUpgrades = it.ownedUpgrades + (upgrade.id to owned + 1)
                 )
             }
+            soundManager.playUpgrade()
+            checkMilestones()
         }
     }
 
-    fun calculateUpgradeCost(upgrade: Upgrade, ownedCount: Int): Long {
-        return (upgrade.baseCost * Constants.COST_MULTIPLIER.pow(ownedCount)).roundToLong()
+    fun ascend() {
+        val state = _gameState.value
+        if (!state.canAscend) return
+        val feathers = state.ascendFeathersAvailable
+        _gameState.update { current ->
+            GameState(
+                totalHype = 0,
+                totalHypeEarned = 0,
+                ownedUpgrades = emptyMap(),
+                lastKnownTime = System.currentTimeMillis(),
+                totalPlayTime = current.totalPlayTime,
+                prestigeFeathers = current.prestigeFeathers + feathers,
+                completedMilestones = current.completedMilestones,
+                isMuted = current.isMuted
+            )
+        }
+        soundManager.isMuted = _gameState.value.isMuted
+        soundManager.playPrestige()
+        checkMilestones()
+        pauseAndSave()
     }
 
+    fun toggleMute() {
+        _gameState.update { it.copy(isMuted = !it.isMuted) }
+        soundManager.isMuted = _gameState.value.isMuted
+    }
+
+    fun updatePlayTime(sessionMillis: Long) {
+        _gameState.update {
+            it.copy(
+                totalPlayTime = it.totalPlayTime + sessionMillis,
+                lastKnownTime = System.currentTimeMillis()
+            )
+        }
+    }
+
+    // ─── Calculations ─────────────────────────────────────────────────────────
+
+    fun calculateUpgradeCost(upgrade: Upgrade, ownedCount: Int): Long =
+        (upgrade.baseCost * Constants.COST_MULTIPLIER.pow(ownedCount)).roundToLong()
+
     fun calculateHypePerTap(): Long {
-        val bonus = UpgradeRegistry.upgrades
-            .filter { it.hypePerTap > 0 }
-            .sumOf { upgrade ->
-                val owned = (_gameState.value.ownedUpgrades[upgrade.id] as? Number)?.toInt() ?: 0
-                owned * upgrade.hypePerTap
-            }
-        return Constants.BASE_HYPE_PER_TAP + bonus
+        val state = _gameState.value
+        val bonus = UpgradeRegistry.tapUpgrades.sumOf { upgrade ->
+            val owned = state.ownedUpgrades[upgrade.id] ?: 0
+            owned * upgrade.hypePerTap
+        }
+        return ((Constants.BASE_HYPE_PER_TAP + bonus) * state.prestigeMultiplier).toLong()
     }
 
     fun calculateHypePerSecond(): Long {
-        return UpgradeRegistry.upgrades
-            .filter { it.hypePerSecond > 0 }
-            .sumOf { upgrade ->
-                val owned = (_gameState.value.ownedUpgrades[upgrade.id] as? Number)?.toInt() ?: 0
-                owned * upgrade.hypePerSecond
-            }
+        val state = _gameState.value
+        val base = UpgradeRegistry.passiveUpgrades.sumOf { upgrade ->
+            val owned = state.ownedUpgrades[upgrade.id] ?: 0
+            owned * upgrade.hypePerSecond
+        }
+        return (base * state.prestigeMultiplier).toLong()
+    }
+
+    // ─── Milestones ───────────────────────────────────────────────────────────
+
+    private fun checkMilestones() {
+        val state = _gameState.value
+        val hpt = calculateHypePerTap()
+        val hps = calculateHypePerSecond()
+        val totalOwned = state.ownedUpgrades.values.sum()
+        val completed = state.completedMilestones
+        val newly = mutableSetOf<String>()
+
+        fun check(id: String, cond: Boolean) { if (cond && id !in completed) newly.add(id) }
+
+        check("first_100",       state.totalHypeEarned >= 100)
+        check("first_1k",        state.totalHypeEarned >= 1_000)
+        check("first_10k",       state.totalHypeEarned >= 10_000)
+        check("first_100k",      state.totalHypeEarned >= 100_000)
+        check("first_1m",        state.totalHypeEarned >= 1_000_000)
+        check("first_10m",       state.totalHypeEarned >= 10_000_000)
+        check("first_upgrade",   totalOwned >= 1)
+        check("ten_upgrades",    totalOwned >= 10)
+        check("twenty_upgrades", totalOwned >= 20)
+        check("hype_machine",    hps >= 100)
+        check("speed_clicker",   hpt >= 50)
+        check("first_ascension", state.prestigeFeathers >= 1)
+        check("five_feathers",   state.prestigeFeathers >= 5)
+        check("ten_feathers",    state.prestigeFeathers >= 10)
+        check("legendary_crow",  (state.ownedUpgrades["legendary_crow"] ?: 0) >= 1)
+        check("mythic_plumage",  (state.ownedUpgrades["mythic_plumage"] ?: 0) >= 1)
+        check("cockadrome",      (state.ownedUpgrades["the_cockadrome"] ?: 0) >= 1)
+
+        if (newly.isNotEmpty()) {
+            _gameState.update { it.copy(completedMilestones = it.completedMilestones + newly) }
+            soundManager.playMilestone()
+        }
     }
 }
