@@ -102,14 +102,25 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             while (isActive) {
                 delay(Constants.AUTO_HYPE_INTERVAL_MS)
                 val hps = calculateHypePerSecond()
+                val hpt = calculateHypePerTap()
                 if (hps > 0) {
                     _gameState.update {
                         it.copy(
                             totalHype = it.totalHype + hps,
-                            totalHypeEarned = it.totalHypeEarned + hps
+                            totalHypeEarned = it.totalHypeEarned + hps,
+                            sessionHypeEarned = it.sessionHypeEarned + hps,
+                            hypePerSecond = hps,
+                            hypePerTap = hpt
                         )
                     }
                     checkMilestones()
+                } else {
+                    _gameState.update {
+                        it.copy(
+                            hypePerSecond = hps,
+                            hypePerTap = hpt
+                        )
+                    }
                 }
             }
         }
@@ -140,6 +151,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 it.copy(
                     totalHype = it.totalHype + gained,
                     totalHypeEarned = it.totalHypeEarned + gained,
+                    sessionHypeEarned = it.sessionHypeEarned + gained,
                     lastKnownTime = System.currentTimeMillis()
                 )
             }
@@ -147,9 +159,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun calculateOfflineHype(secondsAway: Double, hypePerSecond: Long, scaleFactor: Double = 3600.0): Long {
+    fun calculateOfflineHype(secondsAway: Double, hypePerSecond: Long, scaleFactor: Double = 100.0): Long {
         if (secondsAway <= 0) return 0
-        return (hypePerSecond * scaleFactor * ln(secondsAway + 1.0)).toLong()
+        val cappedSeconds = secondsAway.coerceAtMost(Constants.MAX_OFFLINE_SECONDS)
+        return (hypePerSecond * scaleFactor * ln(cappedSeconds + 1.0)).toLong()
     }
 
     fun dismissOfflineHype() {
@@ -160,10 +173,15 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onTap() {
         val hpt = calculateHypePerTap()
+        val hps = calculateHypePerSecond()
         _gameState.update {
             it.copy(
                 totalHype = it.totalHype + hpt,
-                totalHypeEarned = it.totalHypeEarned + hpt
+                totalHypeEarned = it.totalHypeEarned + hpt,
+                sessionHypeEarned = it.sessionHypeEarned + hpt,
+                totalTaps = it.totalTaps + 1,
+                hypePerTap = hpt,
+                hypePerSecond = hps
             )
         }
         soundManager.playTap()
@@ -175,9 +193,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val cost = calculateUpgradeCost(upgrade, owned)
         if (_gameState.value.totalHype >= cost) {
             _gameState.update {
+                val newHpt = calculateHypePerTap()
+                val newHps = calculateHypePerSecond()
                 it.copy(
                     totalHype = it.totalHype - cost,
-                    ownedUpgrades = it.ownedUpgrades + (upgrade.id to owned + 1)
+                    ownedUpgrades = it.ownedUpgrades + (upgrade.id to owned + 1),
+                    totalUpgradesPurchased = it.totalUpgradesPurchased + 1,
+                    hypePerTap = newHpt,
+                    hypePerSecond = newHps
                 )
             }
             soundManager.playUpgrade()
@@ -193,6 +216,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             GameState(
                 totalHype = 0,
                 totalHypeEarned = 0,
+                sessionHypeEarned = 0,
+                totalTaps = current.totalTaps,
+                totalUpgradesPurchased = 0,
                 ownedUpgrades = emptyMap(),
                 lastKnownTime = System.currentTimeMillis(),
                 totalPlayTime = current.totalPlayTime,

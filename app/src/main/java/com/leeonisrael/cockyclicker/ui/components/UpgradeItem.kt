@@ -51,8 +51,7 @@ fun UpgradeItem(
             // Icon
             val iconTint = when {
                 !canAfford && ownedCount == 0 -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                upgrade.category == UpgradeCategory.TAP_MULTIPLIER -> MaterialTheme.colorScheme.secondary
-                else -> MaterialTheme.colorScheme.primary
+                else -> MaterialTheme.colorScheme.secondary
             }
             Surface(
                 modifier = Modifier.size(48.dp),
@@ -100,18 +99,19 @@ fun UpgradeItem(
                     }
                 }
                 val boostLabel = when {
-                    upgrade.hypePerTap > 0 -> "+${NumberFormatter.format(upgrade.hypePerTap)} hype/tap each"
-                    upgrade.hypePerSecond > 0 -> "+${NumberFormatter.format(upgrade.hypePerSecond)} hype/sec each"
+                    upgrade.hypePerTap > 0 -> {
+                        "+${NumberFormatter.format(upgrade.hypePerTap)} hype/tap each"
+                    }
+                    upgrade.hypePerSecond > 0 -> {
+                        "+${NumberFormatter.format(upgrade.hypePerSecond)} hype/sec each"
+                    }
                     else -> ""
                 }
                 if (boostLabel.isNotEmpty()) {
                     Text(
                         text = boostLabel,
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (upgrade.category == UpgradeCategory.TAP_MULTIPLIER)
-                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f)
-                        else
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f)
                     )
                 }
                 Text(

@@ -3,6 +3,7 @@ package com.leeonisrael.cockyclicker.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -37,6 +38,7 @@ import com.leeonisrael.cockyclicker.ui.theme.Garnet
 import com.leeonisrael.cockyclicker.ui.theme.Gold
 import com.leeonisrael.cockyclicker.viewmodel.GameViewModel
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun UpgradeList(
     gameState: GameState,
