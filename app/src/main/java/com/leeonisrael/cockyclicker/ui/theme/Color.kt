@@ -2,6 +2,7 @@ package com.leeonisrael.cockyclicker.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
+val LightGarnet = Color(0xFFAA1A22)
 val Garnet = Color(0xFF73000A)
 val DarkGarnet = Color(0xFF4A0007)
 val DeepGarnet = Color(0xFF2D0004)

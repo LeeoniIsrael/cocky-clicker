@@ -3,6 +3,11 @@ package com.leeonisrael.cockyclicker.model
 data class GameState(
     val totalHype: Long = 0,
     val totalHypeEarned: Long = 0,
+    val sessionHypeEarned: Long = 0,
+    val totalTaps: Long = 0,
+    val totalUpgradesPurchased: Int = 0,
+    val hypePerTap: Long = 1,
+    val hypePerSecond: Long = 0,
     val ownedUpgrades: Map<String, Int> = emptyMap(),
     val lastKnownTime: Long = System.currentTimeMillis(),
     val totalPlayTime: Long = 0L,
