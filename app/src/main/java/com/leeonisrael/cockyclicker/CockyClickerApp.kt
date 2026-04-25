@@ -103,7 +103,13 @@ fun CockyClickerApp() {
                 modifier = Modifier.padding(innerPadding)
             ) {
                 composable(Screen.Game.route)       { GameScreen(viewModel) }
-                composable(Screen.Stats.route)      { StatsScreen(viewModel) }
+                composable(Screen.Stats.route)      { 
+                    StatsScreen(viewModel) {
+                        navController.navigate(Screen.Game.route) {
+                            popUpTo(Screen.Game.route) { inclusive = true }
+                        }
+                    } 
+                }
                 composable(Screen.Milestones.route) { MilestonesScreen(viewModel) }
             }
         }

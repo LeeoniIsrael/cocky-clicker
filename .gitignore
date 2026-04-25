@@ -14,3 +14,4 @@
 .cxx
 /google-services.json
 .DS_Store
+*.hprof

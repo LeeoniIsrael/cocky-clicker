@@ -20,18 +20,26 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.QueryStats
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -45,8 +53,9 @@ import com.leeonisrael.cockyclicker.util.NumberFormatter
 import com.leeonisrael.cockyclicker.viewmodel.GameViewModel
 
 @Composable
-fun StatsScreen(viewModel: GameViewModel) {
+fun StatsScreen(viewModel: GameViewModel, onReset: () -> Unit = {}) {
     val gameState by viewModel.gameState.collectAsState()
+    var showResetDialog by remember { mutableStateOf(false) }
 
     val formattedTime = remember(gameState.totalPlayTime) {
         val totalSeconds = gameState.totalPlayTime / 1000
@@ -86,8 +95,52 @@ fun StatsScreen(viewModel: GameViewModel) {
                 StatRow(label = "Hype Per Second", value = NumberFormatter.format(gameState.hypePerSecond))
             }
             
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Button(
+                onClick = { showResetDialog = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Garnet,
+                    contentColor = Color.White
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = "HARD RESET PROGRESS",
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+            }
+            
             Spacer(modifier = Modifier.height(16.dp))
         }
+    }
+
+    if (showResetDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetDialog = false },
+            title = { Text("Reset All Progress?") },
+            text = { Text("This will PERMANENTLY delete all your stats, upgrades, and prestige feathers. This cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.resetGame()
+                        showResetDialog = false
+                        onReset()
+                    }
+                ) {
+                    Text("RESET EVERYTHING", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetDialog = false }) {
+                    Text("CANCEL", color = Color.White)
+                }
+            }
+        )
     }
 }
 
