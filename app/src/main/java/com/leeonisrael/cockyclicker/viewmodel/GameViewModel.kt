@@ -46,12 +46,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     // ─── Lifecycle ────────────────────────────────────────────────────────────
 
     fun resumeGame() {
+        soundManager.playBackground()
         calculateOfflineProgress()
         startStatsTicker()
         startAutoHypeTicker()
     }
 
     fun pauseAndSave() {
+        soundManager.pauseBackground()
         tickerJob?.cancel()
         autoHypeJob?.cancel()
         _gameState.update { it.copy(lastKnownTime = System.currentTimeMillis()) }
@@ -212,6 +214,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val state = _gameState.value
         if (!state.canAscend) return
         val feathers = state.ascendFeathersAvailable
+
+        // 1. Wipe the board and award the feathers
         _gameState.update { current ->
             GameState(
                 totalHype = 0,
@@ -227,10 +231,34 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 isMuted = current.isMuted
             )
         }
+
+        // 2. Immediately recalculate HPS and HPT with the new prestige multiplier applied
+        // (We do this in a second update so it reads the fresh feathers from state)
+        _gameState.update { current ->
+            current.copy(
+                hypePerTap = calculateHypePerTap(),
+                hypePerSecond = calculateHypePerSecond()
+            )
+        }
+
         soundManager.isMuted = _gameState.value.isMuted
         soundManager.playPrestige()
         checkMilestones()
-        pauseAndSave()
+
+        // 3. Save directly to disk without calling pauseAndSave()
+        // This keeps the tickers alive!
+        prefs.edit().putString("game_state", gson.toJson(_gameState.value)).commit()
+    }
+
+    fun resetGame() {
+        _gameState.value = GameState()
+        soundManager.isMuted = _gameState.value.isMuted
+        
+        // Save the empty state
+        prefs.edit().putString("game_state", gson.toJson(_gameState.value)).commit()
+        
+        // Restart tickers/offline calculations
+        resumeGame()
     }
 
     fun toggleMute() {
