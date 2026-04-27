@@ -15,3 +15,4 @@
 /google-services.json
 .DS_Store
 *.hprof
+/.kotlin
